@@ -134,14 +134,18 @@ export function createSubmitConfirmation() {
   };
 }
 
+let localPendingId = 0;
 export function createLocalPending(updateOptions?: UpdateOptions) {
+  const key = `local-submit-${++localPendingId}`;
   let pending = $state(false);
   const enhance = wrapPendingSubmit(
     {
       start: () => {
+        pendingActions.add(key);
         pending = true;
       },
       stop: () => {
+        pendingActions.delete(key);
         pending = false;
       }
     },

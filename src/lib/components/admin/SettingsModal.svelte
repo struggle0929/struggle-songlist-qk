@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AppearanceSettings from './AppearanceSettings.svelte';
   import { enhance } from '$app/forms';
   import { createLocalPending } from '$lib/pending.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
@@ -62,8 +63,7 @@
       <div class="dialog-header">
         <div>
           <Dialog.Title class="dialog-title">页面设置</Dialog.Title>
-          <Dialog.Description class="dialog-description">修改首页主标题、Bilibili 链接、头像和背景图</Dialog.Description
-          >
+          <Dialog.Description class="dialog-description">配置首页资料、页面图标和鼠标指针</Dialog.Description>
         </div>
         <Dialog.Close class="dialog-close" aria-label="关闭">
           <Icon name="close" size={18} />
@@ -161,6 +161,7 @@
           保存配置
         </button>
       </form>
+      <AppearanceSettings appearance={settings.appearance} />
     </Dialog.Content>
   </Dialog.Portal>
 </Dialog.Root>

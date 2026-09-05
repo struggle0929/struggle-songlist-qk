@@ -38,6 +38,7 @@ export interface CatalogStats {
 }
 
 export interface PageSettings {
+  appearance: import('$lib/appearance').Appearance;
   avatar: string;
   background: string;
   heroTitle: string;

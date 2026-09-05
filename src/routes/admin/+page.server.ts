@@ -1,3 +1,4 @@
+import { saveAppearance } from '$lib/server/appearance';
 import { fail, redirect } from '@sveltejs/kit';
 
 import { inferSongLanguage } from '$lib/language';
@@ -278,6 +279,15 @@ export const actions: Actions = {
   logout: async ({ cookies }) => {
     clearAdminSession(cookies);
     redirect(303, '/admin/login');
+  },
+
+  saveAppearance: async ({ request }) => {
+    try {
+      await saveAppearance(await request.formData());
+      return { kind: 'success' as const, adminMessage: '图标和鼠标指针配置已更新。' };
+    } catch (error) {
+      return fail(400, { kind: 'profile-error' as const, adminError: getErrorMessage(error) });
+    }
   },
 
   saveProfile: async ({ request }) => {

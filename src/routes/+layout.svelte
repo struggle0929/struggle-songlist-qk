@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
-  import { branding, customCursorsEnabled } from '$lib/branding';
+  import { cursorStates, staticStates } from '$lib/appearance';
+  import { branding, customCursorsEnabled, customCursors } from '$lib/branding';
 
   import { getCurrentYearInShanghai } from '$lib/datetime';
   import AnimatedCursor from '$lib/components/AnimatedCursor.svelte';
@@ -11,14 +12,23 @@
   import type { LayoutData } from './$types';
 
   let { data, children }: { data: LayoutData; children: Snippet } = $props();
+  const cursorConfig = $derived.by(() => {
+    const appearance = data.appearance;
+    if (appearance.mode === 'inherit') return customCursorsEnabled ? { cursors: customCursors, animated: true } : null;
+    if (appearance.mode === 'system') return null;
+    const cursors = appearance[appearance.mode];
+    const required = appearance.mode === 'static' ? staticStates : cursorStates;
+    if (!required.every((state) => cursors[state]?.file)) return null;
+    return { cursors, animated: appearance.mode === 'animated' };
+  });
   const currentYear = getCurrentYearInShanghai();
 </script>
 
 <svelte:head>
   <title>{branding.title}</title>
   <meta name="description" content={branding.description} />
-  {#if branding.icon}
-    <link rel="icon" href={branding.icon} />
+  {#if data.appearance.favicon || branding.icon}
+    <link rel="icon" href={data.appearance.favicon || branding.icon} />
   {/if}
 </svelte:head>
 
@@ -30,7 +40,7 @@
     <div class="absolute top-24 right-[-16rem] h-[34rem] w-[34rem] rounded-full bg-[#14b8a6]/10 blur-[120px]"></div>
   </div>
 
-  <Header isAdmin={data.isAdmin} />
+  <Header isAdmin={data.isAdmin} icon={data.appearance.logo || branding.icon} />
 
   <main class="mx-auto w-full max-w-7xl flex-1 px-4 pt-8 pb-16 lg:px-6 lg:pt-10">
     {@render children()}
@@ -59,6 +69,8 @@
   }}
 />
 
-{#if customCursorsEnabled}
-  <AnimatedCursor />
-{/if}
+{#key JSON.stringify(cursorConfig)}
+  {#if cursorConfig}
+    <AnimatedCursor cursors={cursorConfig.cursors} animated={cursorConfig.animated} />
+  {/if}
+{/key}

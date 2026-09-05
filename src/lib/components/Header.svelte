@@ -5,7 +5,7 @@
   import Icon from '$lib/components/ui/Icon.svelte';
   import { applyTheme, persistTheme } from '$lib/theme';
 
-  let { isAdmin }: { isAdmin: boolean } = $props();
+  let { isAdmin, icon = branding.icon }: { isAdmin: boolean; icon?: string } = $props();
 
   let isDark = $state(browser && document.documentElement.classList.contains('dark'));
 
@@ -24,14 +24,8 @@
 >
   <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 lg:px-6">
     <a href="/" class="flex min-w-0 items-center gap-3">
-      {#if branding.icon}
-        <img
-          src={branding.icon}
-          alt=""
-          class="h-9 w-9 shrink-0 rounded-[12px] object-cover shadow-sm"
-          width="36"
-          height="36"
-        />
+      {#if icon}
+        <img src={icon} alt="" class="h-9 w-9 shrink-0 rounded-[12px] object-cover shadow-sm" width="36" height="36" />
       {:else}
         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-accent)] text-white"
           >歌</span

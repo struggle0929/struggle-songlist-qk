@@ -1,3 +1,4 @@
+import { parseAppearance } from '$lib/appearance';
 import { randomUUID } from 'node:crypto';
 
 import { defaultBilibiliUrl } from '$lib/config';
@@ -14,6 +15,7 @@ type SettingRow = {
 export const settingsAssetBucket = 'site-assets';
 
 export const pageSettingsKeys = {
+  appearance: 'appearance',
   avatarPath: 'avatar_path',
   backgroundPath: 'background_path',
   heroTitle: 'hero_title',
@@ -25,6 +27,7 @@ export type PageSettingKey = (typeof pageSettingsKeys)[keyof typeof pageSettings
 export const pageSettingsReadKeys = Object.values(pageSettingsKeys) as PageSettingKey[];
 
 export const pageSettingsDefaults: Record<PageSettingKey, string> = {
+  [pageSettingsKeys.appearance]: '',
   [pageSettingsKeys.avatarPath]: '',
   [pageSettingsKeys.backgroundPath]: '',
   [pageSettingsKeys.heroTitle]: branding.title,
@@ -83,7 +86,18 @@ const getAssetPublicUrl = (path: string) => {
   return supabasePublic.storage.from(settingsAssetBucket).getPublicUrl(path).data.publicUrl;
 };
 
+const resolveAppearance = (value: string) => {
+  const appearance = parseAppearance(value);
+  appearance.logo = getAssetPublicUrl(appearance.logo);
+  appearance.favicon = getAssetPublicUrl(appearance.favicon);
+  for (const mode of ['static', 'animated'] as const) {
+    for (const asset of Object.values(appearance[mode])) asset.file = getAssetPublicUrl(asset.file);
+  }
+  return appearance;
+};
+
 const mapPageSettings = (settings: Record<string, string>): PageSettings => ({
+  appearance: resolveAppearance(getSettingValue(settings, pageSettingsKeys.appearance)),
   avatar: getAssetPublicUrl(getSettingValue(settings, pageSettingsKeys.avatarPath)),
   background: getAssetPublicUrl(getSettingValue(settings, pageSettingsKeys.backgroundPath)),
   heroTitle: getSettingValue(settings, pageSettingsKeys.heroTitle),

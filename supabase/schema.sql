@@ -97,7 +97,7 @@ create policy "public songs are readable"
 create table public.settings (
   key text primary key,
   value text not null,
-  check (key in ('avatar_path', 'background_path', 'hero_title', 'bilibili_url'))
+  check (key in ('avatar_path', 'background_path', 'hero_title', 'bilibili_url', 'appearance'))
 );
 
 alter table public.settings enable row level security;
@@ -105,7 +105,7 @@ alter table public.settings enable row level security;
 create policy "public settings are readable"
   on public.settings
   for select
-  using (key in ('avatar_path', 'background_path', 'hero_title', 'bilibili_url'));
+  using (key in ('avatar_path', 'background_path', 'hero_title', 'bilibili_url', 'appearance'));
 
 insert into public.settings (key, value)
 values

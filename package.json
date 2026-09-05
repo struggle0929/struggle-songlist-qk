@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test:appearance": "node scripts/test-appearance.mjs",
     "db:types": "node scripts/generate-supabase-types.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

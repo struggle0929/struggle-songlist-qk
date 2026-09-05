@@ -1,3 +1,4 @@
+import { appearancePaths, parseAppearance } from '$lib/appearance';
 import { collectTags, listPublicSongs, listSongs } from '$lib/server/songs';
 import { countPendingRequests, listRequests } from '$lib/server/requests';
 import {
@@ -10,8 +11,10 @@ import {
 } from '$lib/server/settings';
 import { supabaseAdmin } from '$lib/server/supabase';
 import { type AdminDashboardData, type PublicCatalog } from '$lib/types';
+import { getDemoCatalog, localDemo } from '$lib/server/demo';
 
 export const getPublicCatalog = async (): Promise<PublicCatalog> => {
+  if (localDemo) return getDemoCatalog();
   const [songs, settings] = await Promise.all([listPublicSongs(), getSettings()]);
 
   return {
@@ -38,7 +41,11 @@ export const getAdminDashboardData = async (): Promise<AdminDashboardData> => {
 
 export const resetDatabase = async () => {
   const settings = await listSettings(pageSettingsReadKeys);
-  const assetPaths = [settings[pageSettingsKeys.avatarPath], settings[pageSettingsKeys.backgroundPath]].filter(Boolean);
+  const assetPaths = [
+    settings[pageSettingsKeys.avatarPath],
+    settings[pageSettingsKeys.backgroundPath],
+    ...appearancePaths(parseAppearance(settings[pageSettingsKeys.appearance]))
+  ].filter(Boolean);
 
   const { error } = await supabaseAdmin.rpc('reset_admin_data', { p_settings: pageSettingsDefaults });
 

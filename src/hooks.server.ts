@@ -1,8 +1,15 @@
 import { redirect, type Handle } from '@sveltejs/kit';
 
 import { verifyAdminSession } from '$lib/server/auth';
+import { localDemo } from '$lib/server/demo';
 
 export const handle: Handle = async ({ event, resolve }) => {
+  if (localDemo && !['GET', 'HEAD', 'OPTIONS'].includes(event.request.method)) {
+    return new Response('本地演示模式不支持提交或修改数据，请配置独立数据库后测试。', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+    });
+  }
   event.locals.isAdmin = verifyAdminSession(event.cookies);
 
   const pathname = event.url.pathname;

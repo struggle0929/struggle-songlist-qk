@@ -1,8 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { customCursors as cursors, type CursorName } from '$lib/branding';
+  import { navigating } from '$app/state';
+  import { pendingActions } from '$lib/pending.svelte';
+  import { cursorStates, type CursorState as CursorName } from '$lib/appearance';
+  let {
+    cursors,
+    animated = true
+  }: {
+    cursors: Partial<Record<CursorName, { file: string; hotspot: readonly [number, number] }>>;
+    animated?: boolean;
+  } = $props();
 
-  const cursorNames = new Set<CursorName>(Object.keys(cursors) as CursorName[]);
+  const cursorNames = new Set<CursorName>(cursorStates);
   const disabledSelector = ':disabled, [aria-disabled="true"], [data-disabled]';
   const interactiveSelector = [
     'a[href]',
@@ -77,12 +86,15 @@
   ].join(',');
 
   let cursorElement: HTMLImageElement;
-  let cursorName: CursorName = 'default';
-  let visible = false;
+  let cursorName = $state<CursorName>('default');
+  let visible = $state(false);
+  let target: Element | null = null;
   let x = 0;
   let y = 0;
 
   function findCursor(target: Element | null): CursorName {
+    if (animated && navigating.to) return cursors.wait ? 'wait' : 'progress';
+    if (animated && pendingActions.size) return 'progress';
     if (!target) return 'default';
 
     const explicitCursor = target.closest<HTMLElement>('[data-cursor]')?.dataset.cursor;
@@ -90,6 +102,7 @@
       return explicitCursor as CursorName;
     }
 
+    if (animated && target.closest('[data-pending="true"], [aria-busy="true"]')) return 'progress';
     if (target.closest(disabledSelector)) return 'not-allowed';
     if (target.closest(interactiveSelector)) return 'pointer';
     if (target.closest(textSelector)) return 'text';
@@ -97,9 +110,19 @@
   }
 
   function renderPosition() {
-    const [hotspotX, hotspotY] = cursors[cursorName].hotspot;
+    const [hotspotX, hotspotY] = cursors[cursorName]?.hotspot ?? [0, 0];
     cursorElement.style.transform = `translate3d(${x - hotspotX}px, ${y - hotspotY}px, 0)`;
   }
+
+  $effect(() => {
+    // Re-evaluate even while the mouse is stationary during submissions/navigation.
+    void navigating.to;
+    void pendingActions.size;
+    if (visible && cursorElement) {
+      cursorName = findCursor(target);
+      renderPosition();
+    }
+  });
 
   onMount(() => {
     const finePointer = window.matchMedia('(pointer: fine)');
@@ -109,7 +132,7 @@
     let disposed = false;
 
     const setActive = () => {
-      active = ready && finePointer.matches && !reducedMotion.matches;
+      active = ready && finePointer.matches && (!animated || !reducedMotion.matches);
       if (!active) hide();
     };
 
@@ -118,7 +141,12 @@
 
       x = event.clientX;
       y = event.clientY;
-      cursorName = findCursor(event.target instanceof Element ? event.target : null);
+      target = event.target instanceof Element ? event.target : null;
+      cursorName = findCursor(target);
+      if (!cursors[cursorName]?.file) {
+        hide();
+        return;
+      }
       visible = true;
       document.documentElement.classList.add('animated-cursor-active');
       renderPosition();
@@ -182,7 +210,7 @@
   bind:this={cursorElement}
   class:visible
   class="animated-cursor"
-  src={cursors[cursorName].file}
+  src={cursors[cursorName]?.file || cursors.default?.file}
   alt=""
   aria-hidden="true"
 />
@@ -205,7 +233,7 @@
     visibility: visible;
   }
 
-  @media (pointer: coarse), (prefers-reduced-motion: reduce) {
+  @media (pointer: coarse) {
     .animated-cursor {
       display: none;
     }

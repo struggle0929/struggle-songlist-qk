@@ -1,0 +1,77 @@
+# struggle-songlist-qk
+
+通用单主播歌单。保留点击复制、筛选条件内随机选歌、手机端随机不跳转、愿望单直达、置顶置底、后台状态搜索、网易云导入及移动端字体修复。
+
+默认不含主播个人素材，使用系统鼠标指针。标题、图标与可选动态指针通过部署环境变量配置；头像、背景和 Bilibili 地址由后台设置。多位主播共享代码，每位主播使用独立部署与独立数据库。
+
+详细步骤见 [多主播部署指南](DEPLOYMENT.md)，配置示例见 [.env.example](.env.example)。
+
+基于 QingKong Songlist，保留原作者声明及 LICENSE。
+
+SvelteKit + Supabase 搭建的单主播歌单站。观众查歌、筛选、提交愿望单；主播后台管理曲库、导入网易云歌曲、处理请求。
+
+前台 `/` · 后台登录 `/admin/login` · 后台 `/admin`
+
+## 快速开始
+
+```bash
+npm install
+cp .env.example .env   # 填入下方环境变量
+# 在 Supabase SQL Editor 执行 supabase/schema.sql
+npm run dev
+```
+
+要求 Node 20.19+ 或 22.12+（Vite 8）。
+
+## 环境变量
+
+| 变量                              | 说明                                                     |
+| --------------------------------- | -------------------------------------------------------- |
+| `PUBLIC_SUPABASE_URL`             | Supabase 项目 URL                                        |
+| `PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key，格式为 `sb_publishable_...`             |
+| `SUPABASE_SECRET_KEY`             | Secret key，格式为 `sb_secret_...`，仅服务端使用         |
+| `AUTH_SECRET`                     | 用于签名 admin session cookie 的随机串，建议至少 32 字节 |
+
+生成 `AUTH_SECRET` 示例：
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+把输出结果填入本地 `.env` 和部署平台环境变量即可。
+
+管理员登录走 Supabase Auth。**任何能在 Supabase 登录的账号都能进后台**，请只在 Auth 中创建受信任的账号。
+
+## 脚本
+
+| 命令                   | 作用                                       |
+| ---------------------- | ------------------------------------------ |
+| `npm run dev`          | 启动开发服务器                             |
+| `npm run build`        | 生产构建                                   |
+| `npm run preview`      | 预览生产构建                               |
+| `npm run check`        | 类型 + Svelte 检查                         |
+| `npm run db:types`     | 从 `.env` 对应 Supabase 项目生成数据库类型 |
+| `npm run format`       | Prettier 格式化整个仓库                    |
+| `npm run format:check` | 只检查格式不写入                           |
+
+提交时 husky pre-commit 会自动跑 `lint-staged`，对 staged 文件执行 `prettier --write`。`npm install` 会自动激活 hook。
+
+首次生成数据库类型前，先执行 `npx supabase login` 登录 Supabase CLI。之后 `npm run db:types` 会从 `.env` 的 `PUBLIC_SUPABASE_URL` 自动提取 project ref，并更新 `src/lib/server/database.types.ts`。
+
+## 部署
+
+使用 `@sveltejs/adapter-auto`，Vercel / Netlify / Cloudflare Pages 等均可。部署前：
+
+- 托管平台配置全部环境变量
+- 在生产 Supabase 执行 `supabase/schema.sql`
+- 在 Supabase Auth 中至少创建一个管理员账号
+
+## 技术栈
+
+SvelteKit 2 · Svelte 5 · Vite 8 · Tailwind CSS 4 · Supabase · Zod 4 · `@neteasecloudmusicapienhanced/api`
+
+## 许可证
+
+本项目采用 `Parity Public License 7.0.0` 授权，详见根目录 `LICENSE`。
+
+如果你使用本软件开发、运行或分析其他软件，则相关软件也需要按照协议要求开放共享。

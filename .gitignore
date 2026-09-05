@@ -1,0 +1,8 @@
+node_modules
+.svelte-kit
+supabase/.temp
+build
+.vercel
+.env
+.env.*
+!.env.example

@@ -1,6 +1,6 @@
 <script lang="ts">
   import '../app.css';
-  import { cursorStates, staticStates } from '$lib/appearance';
+  import { getAutomaticCursorMode, hasCompleteCursorSet, resolveFavicon } from '$lib/appearance';
   import { branding, customCursorsEnabled, customCursors } from '$lib/branding';
 
   import { getCurrentYearInShanghai } from '$lib/datetime';
@@ -14,12 +14,14 @@
   let { data, children }: { data: LayoutData; children: Snippet } = $props();
   const cursorConfig = $derived.by(() => {
     const appearance = data.appearance;
-    if (appearance.mode === 'inherit') return customCursorsEnabled ? { cursors: customCursors, animated: true } : null;
+    if (appearance.mode === 'inherit') {
+      const uploadedMode = getAutomaticCursorMode(appearance);
+      if (uploadedMode) return { cursors: appearance[uploadedMode], animated: uploadedMode === 'animated' };
+      return customCursorsEnabled ? { cursors: customCursors, animated: true } : null;
+    }
     if (appearance.mode === 'system') return null;
-    const cursors = appearance[appearance.mode];
-    const required = appearance.mode === 'static' ? staticStates : cursorStates;
-    if (!required.every((state) => cursors[state]?.file)) return null;
-    return { cursors, animated: appearance.mode === 'animated' };
+    if (!hasCompleteCursorSet(appearance, appearance.mode)) return null;
+    return { cursors: appearance[appearance.mode], animated: appearance.mode === 'animated' };
   });
   const currentYear = getCurrentYearInShanghai();
 </script>
@@ -27,9 +29,7 @@
 <svelte:head>
   <title>{branding.title}</title>
   <meta name="description" content={branding.description} />
-  {#if data.appearance.favicon || branding.icon}
-    <link rel="icon" href={data.appearance.favicon || branding.icon} />
-  {/if}
+  <link rel="icon" href={resolveFavicon(data.appearance, branding.icon)} />
 </svelte:head>
 
 <div class="flex min-h-screen flex-col">

@@ -83,7 +83,8 @@ async function test(name, run) {
 }
 try {
   const { saveAppearance } = await server.ssrLoadModule('/src/lib/server/appearance.ts');
-  const { cursorStates, staticStates, parseAppearance } = await server.ssrLoadModule('/src/lib/appearance.ts');
+  const { cursorStates, staticStates, parseAppearance, getAutomaticCursorMode, resolveFavicon } =
+    await server.ssrLoadModule('/src/lib/appearance.ts');
   await test('missing active cursor images are rejected before upload', async () => {
     const input = form('animated');
     input.set('logo', png());
@@ -160,6 +161,22 @@ try {
     assert.equal(parseAppearance('null').mode, 'inherit');
     assert.equal(parseAppearance('{').mode, 'inherit');
     assert.deepEqual(parseAppearance('{"static":{"text":{"file":"x","hotspot":[99,0]}}}').static, {});
+  });
+  await test('automatic mode prefers animated, then static, then no uploaded cursor', async () => {
+    const appearance = parseAppearance();
+    assert.equal(getAutomaticCursorMode(appearance), null);
+    for (const state of staticStates) appearance.static[state] = { file: `${state}.png`, hotspot: [0, 0] };
+    assert.equal(getAutomaticCursorMode(appearance), 'static');
+    for (const state of cursorStates) appearance.animated[state] = { file: `${state}.gif`, hotspot: [0, 0] };
+    assert.equal(getAutomaticCursorMode(appearance), 'animated');
+  });
+  await test('favicon reset selects deployment icon or built-in default', async () => {
+    const appearance = parseAppearance();
+    appearance.favicon = 'uploaded.png';
+    assert.equal(resolveFavicon(appearance, 'deployment.png'), 'uploaded.png');
+    appearance.favicon = '';
+    assert.equal(resolveFavicon(appearance, 'deployment.png'), 'deployment.png');
+    assert.equal(resolveFavicon(appearance, ''), '/favicon.svg');
   });
   console.log(`${passed} appearance tests passed.`);
 } finally {

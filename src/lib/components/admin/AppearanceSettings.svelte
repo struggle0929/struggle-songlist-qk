@@ -45,7 +45,7 @@
         <label class="field-label">
           <span>鼠标指针模式</span>
           <select name="cursorMode" class="form-field" bind:value={mode}>
-            <option value="inherit">沿用部署默认配置</option>
+            <option value="inherit">自动选择（动态 → 静态 → 系统）</option>
             <option value="system">系统鼠标指针</option>
             <option value="static">静态鼠标指针（3 张 PNG）</option>
             <option value="animated">动态鼠标指针（6 张 GIF）</option>
@@ -56,6 +56,11 @@
           256KB，建议透明背景。热点按显示尺寸计算，左上角为 (0,
           0)。两套图片分别保存，启用前需补齐对应图片。触屏保留系统行为，减少动画模式下不启用动态指针。
         </p>
+        {#if mode === 'inherit'}
+          <p class="rounded-xl bg-[var(--color-surface-muted)] p-3 text-xs text-[var(--color-text-muted)]">
+            自动模式优先使用完整的动态指针，其次使用完整的静态指针；均未配置时尝试部署环境中的动态指针，最后使用系统指针。
+          </p>
+        {/if}
         {#each ['static', 'animated'] as const as kind}
           <details open={mode === kind} class="rounded-xl border border-[var(--color-border-soft)] p-3">
             <summary class="font-medium"

@@ -1,6 +1,7 @@
 export const cursorStates = ['default', 'pointer', 'text', 'not-allowed', 'progress', 'wait'] as const;
 export type CursorState = (typeof cursorStates)[number];
 export type CursorMode = 'system' | 'static' | 'animated';
+export type UploadedCursorMode = Exclude<CursorMode, 'system'>;
 export const cursorLabels: Record<CursorState, string> = {
   default: '普通选择',
   pointer: '链接 / 按钮',
@@ -10,6 +11,7 @@ export const cursorLabels: Record<CursorState, string> = {
   wait: '等待 / 忙碌'
 };
 export const staticStates = cursorStates.slice(0, 3);
+export const defaultFavicon = '/favicon.svg';
 export type CursorAsset = { file: string; hotspot: [number, number] };
 export type Appearance = {
   logo: string;
@@ -19,6 +21,20 @@ export type Appearance = {
   animated: Partial<Record<CursorState, CursorAsset>>;
 };
 export const emptyAppearance = (): Appearance => ({ logo: '', favicon: '', mode: 'inherit', static: {}, animated: {} });
+
+export function hasCompleteCursorSet(appearance: Appearance, mode: UploadedCursorMode): boolean {
+  const required = mode === 'static' ? staticStates : cursorStates;
+  return required.every((state) => Boolean(appearance[mode][state]?.file));
+}
+
+export function getAutomaticCursorMode(appearance: Appearance): UploadedCursorMode | null {
+  if (hasCompleteCursorSet(appearance, 'animated')) return 'animated';
+  if (hasCompleteCursorSet(appearance, 'static')) return 'static';
+  return null;
+}
+
+export const resolveFavicon = (appearance: Appearance, deploymentIcon: string) =>
+  appearance.favicon || deploymentIcon || defaultFavicon;
 
 // Only storage paths are persisted; URLs are resolved on the server.
 export function parseAppearance(value: string | undefined): Appearance {

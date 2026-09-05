@@ -1,6 +1,7 @@
 <script lang="ts">
   import { branding } from '$lib/branding';
   import AddSongPanel from '$lib/components/admin/AddSongPanel.svelte';
+  import DataSettingsModal from '$lib/components/admin/DataSettingsModal.svelte';
   import NeteaseImportModal from '$lib/components/admin/NeteaseImportModal.svelte';
   import OverviewCard from '$lib/components/admin/OverviewCard.svelte';
   import RequestListCard from '$lib/components/admin/RequestListCard.svelte';
@@ -15,6 +16,7 @@
 
   let { data, form }: { data: PageData; form?: import('$lib/admin/result').AdminActionResult | null } = $props();
   let importModalDismissed = $state(true);
+  let dataSettingsModalOpen = $state(false);
   let settingsModalOpen = $state(false);
   let activeTab = $state('songs');
   let syncedHashTab = 'songs';
@@ -60,7 +62,11 @@
 </svelte:head>
 
 <div class="space-y-6">
-  <OverviewCard overview={data.dashboard.overview} onOpenSettings={() => (settingsModalOpen = true)} />
+  <OverviewCard
+    overview={data.dashboard.overview}
+    onOpenDataSettings={() => (dataSettingsModalOpen = true)}
+    onOpenSettings={() => (settingsModalOpen = true)}
+  />
 
   <Tabs.Root bind:value={activeTab} class="space-y-5">
     <Tabs.List class="admin-tabs-list inline-flex">
@@ -84,6 +90,7 @@
 </div>
 
 <SettingsModal settings={data.dashboard.settings} adminError={settingsError} bind:open={settingsModalOpen} />
+<DataSettingsModal bind:open={dataSettingsModalOpen} />
 
 {#if hasImportPreview(form) && !importModalDismissed}
   <NeteaseImportModal

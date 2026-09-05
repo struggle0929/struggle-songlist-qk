@@ -143,6 +143,10 @@ export type Database = {
         Returns: undefined;
       };
       reset_admin_data: { Args: { p_settings: Json }; Returns: undefined };
+      restore_admin_data: {
+        Args: { p_requests: Json; p_settings: Json; p_songs: Json };
+        Returns: undefined;
+      };
     };
     Enums: {
       request_status: 'pending' | 'accepted' | 'refused';

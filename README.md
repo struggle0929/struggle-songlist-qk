@@ -44,15 +44,17 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 ## 脚本
 
-| 命令                   | 作用                                       |
-| ---------------------- | ------------------------------------------ |
-| `npm run dev`          | 启动开发服务器                             |
-| `npm run build`        | 生产构建                                   |
-| `npm run preview`      | 预览生产构建                               |
-| `npm run check`        | 类型 + Svelte 检查                         |
-| `npm run db:types`     | 从 `.env` 对应 Supabase 项目生成数据库类型 |
-| `npm run format`       | Prettier 格式化整个仓库                    |
-| `npm run format:check` | 只检查格式不写入                           |
+| 命令                      | 作用                                       |
+| ------------------------- | ------------------------------------------ |
+| `npm run dev`             | 启动开发服务器                             |
+| `npm run build`           | 生产构建                                   |
+| `npm run preview`         | 预览生产构建                               |
+| `npm run check`           | 类型 + Svelte 检查                         |
+| `npm run test:appearance` | 页面图标与鼠标指针存储测试                 |
+| `npm run test:backup`     | 数据备份、恢复及素材切换测试               |
+| `npm run db:types`        | 从 `.env` 对应 Supabase 项目生成数据库类型 |
+| `npm run format`          | Prettier 格式化整个仓库                    |
+| `npm run format:check`    | 只检查格式不写入                           |
 
 提交时 husky pre-commit 会自动跑 `lint-staged`，对 staged 文件执行 `prettier --write`。`npm install` 会自动激活 hook。
 

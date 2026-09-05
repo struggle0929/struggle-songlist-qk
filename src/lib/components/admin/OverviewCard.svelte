@@ -7,9 +7,11 @@
 
   let {
     overview,
+    onOpenDataSettings,
     onOpenSettings
   }: {
     overview: CatalogStats;
+    onOpenDataSettings: () => void;
     onOpenSettings: () => void;
   } = $props();
 
@@ -46,6 +48,7 @@
           重置数据库
         </button>
       </form>
+      <button type="button" class="button button-ghost button-small" onclick={onOpenDataSettings}>数据配置</button>
       <button type="button" class="button button-ghost button-small" onclick={onOpenSettings}>页面配置</button>
       <form method="POST" action="?/logout" use:enhance={pendingEnhance('logout')}>
         <button

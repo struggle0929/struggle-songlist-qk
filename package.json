@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:appearance": "node scripts/test-appearance.mjs",
+    "test:backup": "node scripts/test-database-backup.mjs",
     "db:types": "node scripts/generate-supabase-types.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '$lib/components/ui/Icon.svelte';
+  import { formatSongRequest } from '$lib/appearance';
   import type { SongTitleSortDirection } from '$lib/songs';
   import { songStatusClasses } from '$lib/status-styles';
   import { songStatusLabels, type Song } from '$lib/types';
@@ -9,12 +10,14 @@
     songs,
     titleSortDirection = $bindable('asc'),
     selectedSongId = $bindable<Song['id'] | null>(null),
-    randomSelectionVersion = 0
+    randomSelectionVersion = 0,
+    requestPrefix = '点歌'
   }: {
     songs: Song[];
     titleSortDirection?: SongTitleSortDirection;
     selectedSongId?: Song['id'] | null;
     randomSelectionVersion?: number;
+    requestPrefix?: string;
   } = $props();
 
   const songRowElements = new Map<Song['id'], HTMLElement>();
@@ -41,7 +44,7 @@
   };
 
   const copySongRequest = async (song: Song) => {
-    const text = `点歌 ${song.title}`;
+    const text = formatSongRequest(song.title, requestPrefix);
 
     try {
       if (navigator.clipboard?.writeText) {
@@ -137,7 +140,7 @@
           class="song-row"
           role="button"
           tabindex="0"
-          aria-label={`复制点歌 ${song.title}`}
+          aria-label={`复制${formatSongRequest(song.title, requestPrefix)}`}
           use:registerSongRow={song.id}
           onclick={() => selectAndCopySong(song)}
           onkeydown={(event) => handleSongRowKeydown(event, song)}

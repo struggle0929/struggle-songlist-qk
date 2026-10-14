@@ -28,6 +28,7 @@ const request = {
   created_at: '2026-09-05T00:00:00.000Z'
 };
 const initialAppearance = JSON.stringify({
+  requestPrefix: '我要听',
   logo: 'appearance/old.png',
   favicon: '',
   mode: 'system',
@@ -197,6 +198,7 @@ try {
     const result = await service.completeImport({ restoreId: prepared.restoreId, data, assets: prepared.uploads });
     assert.deepEqual(result, { songs: 1, requests: 1, assets: 2 });
     assert.equal(state.rpc.name, 'restore_admin_data');
+    assert.equal(JSON.parse(state.rpc.args.p_settings.appearance).requestPrefix, '我要听');
     assert.ok(state.rpc.args.p_settings.avatar_path.startsWith(`restores/${prepared.restoreId}/`));
     assert.ok(JSON.parse(state.rpc.args.p_settings.appearance).logo.startsWith(`restores/${prepared.restoreId}/`));
     assert.ok(state.removed.includes('profile/old.jpg'));

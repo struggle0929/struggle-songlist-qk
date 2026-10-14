@@ -49,7 +49,7 @@ const imageExtensionByMimeType: Record<string, string> = {
   'image/avif': 'avif'
 };
 
-const resolveImageExtension = (file: File) => {
+export const resolveImageExtension = (file: File) => {
   const mapped = imageExtensionByMimeType[file.type];
 
   if (!mapped) {

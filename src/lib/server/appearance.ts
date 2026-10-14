@@ -8,7 +8,14 @@ import {
   type CursorMode
 } from '$lib/appearance';
 import { UserFacingError } from '$lib/server/errors';
-import { listSettings, pageSettingsKeys, saveSettings, settingsAssetBucket } from '$lib/server/settings';
+import {
+  listSettings,
+  pageSettingsKeys,
+  saveSettings,
+  settingsAssetBucket,
+  resolveImageExtension,
+  type PageSettingKey
+} from '$lib/server/settings';
 import { supabaseAdmin } from '$lib/server/supabase';
 
 export function readBackgroundBlur(form: FormData) {
@@ -37,24 +44,51 @@ export async function saveHeaderText(form: FormData) {
   await saveSettings({ [pageSettingsKeys.appearance]: JSON.stringify(existing) });
 }
 
-export async function saveAppearance(form: FormData) {
+export async function saveAppearance(form: FormData, profile?: { heroTitle: string; bilibiliUrl: string }) {
   const mode = form.get('cursorMode');
   if (!['inherit', 'system', 'static', 'animated'].includes(String(mode)))
     throw new UserFacingError('请选择鼠标指针模式。');
-  const existing = parseAppearance((await listSettings([pageSettingsKeys.appearance]))[pageSettingsKeys.appearance]);
+  const stored = await listSettings(profile ? Object.values(pageSettingsKeys) : [pageSettingsKeys.appearance]);
+  const existing = parseAppearance(stored[pageSettingsKeys.appearance]);
   const next = structuredClone(existing);
   next.mode = mode as CursorMode | 'inherit';
+  const blur = readBackgroundBlur(form);
+  if (blur !== undefined) next.backgroundBlur = blur;
   for (const [key, limit] of [
     ['siteTitle', 80],
     ['siteDescription', 300],
-    ['tagline', 200]
+    ['tagline', 200],
+    ['headerTitle', 40],
+    ['headerSubtitle', 80],
+    ['requestPrefix', 20]
   ] as const) {
     const raw = form.get(key);
     if (raw === null) continue;
     if (typeof raw !== 'string' || raw.trim().length > limit) throw new UserFacingError('页面文字超出允许长度。');
-    next[key] = raw.trim();
+    if (key === 'requestPrefix' && /[\r\n\x00-\x1f\x7f]/.test(raw))
+      throw new UserFacingError('点歌前缀不能包含换行或控制字符。');
+    next[key] = key === 'requestPrefix' ? raw.trim() || '点歌' : raw.trim();
   }
   const uploads: { path: string; file: File }[] = [];
+  const entries: Partial<Record<PageSettingKey, string>> = {};
+  const oldProfilePaths: string[] = [];
+  if (profile) {
+    entries[pageSettingsKeys.heroTitle] = profile.heroTitle;
+    entries[pageSettingsKeys.bilibiliUrl] = profile.bilibiliUrl;
+    for (const kind of ['avatar', 'background'] as const) {
+      const file = form.get(kind);
+      if (!(file instanceof File) || !file.size) continue;
+      const maxMB = kind === 'avatar' ? 2 : 5;
+      if (file.size > maxMB * 1024 * 1024)
+        throw new UserFacingError(`${kind === 'avatar' ? '头像' : '背景'}文件不能超过 ${maxMB}MB。`);
+      const extension = resolveImageExtension(file);
+      const path = `profile/${kind}-${randomUUID()}.${extension}`;
+      const key = kind === 'avatar' ? pageSettingsKeys.avatarPath : pageSettingsKeys.backgroundPath;
+      entries[key] = path;
+      if (stored[key]) oldProfilePaths.push(stored[key]);
+      uploads.push({ path, file });
+    }
+  }
 
   const prepareImage = async (name: string, label: string, gif: boolean, cursor: boolean) => {
     const file = form.get(name);
@@ -140,13 +174,13 @@ export async function saveAppearance(form: FormData) {
       if (error) throw error;
       uploaded.push(path);
     }
-    await saveSettings({ [pageSettingsKeys.appearance]: JSON.stringify(next) });
+    await saveSettings({ ...entries, [pageSettingsKeys.appearance]: JSON.stringify(next) });
   } catch (error) {
     if (uploaded.length) await bucket.remove(uploaded);
     throw error;
   }
   const kept = new Set(appearancePaths(next));
-  const removed = appearancePaths(existing).filter((path) => !kept.has(path));
+  const removed = [...appearancePaths(existing), ...oldProfilePaths].filter((path) => !kept.has(path));
   if (removed.length) {
     const { error } = await bucket.remove(removed);
     if (error) console.warn('删除旧外观图片失败：', error);

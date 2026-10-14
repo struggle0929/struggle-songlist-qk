@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'vite';
 import { resolve } from 'node:path';
 
-const state = { value: '', uploaded: [], removed: [], failUpload: 0, failSave: false };
+const state = { value: '', uploaded: [], removed: [], failUpload: 0, failSave: false, entries: {} };
 globalThis.__appearanceTest = state;
 const server = await createServer({
   configFile: false,
@@ -28,12 +28,14 @@ const server = await createServer({
         if (id === '\0mock:$lib/server/settings')
           return `
         const state = globalThis.__appearanceTest;
-        export const pageSettingsKeys = {appearance: 'appearance'};
+        export const pageSettingsKeys = {appearance: 'appearance',heroTitle:'hero_title',bilibiliUrl:'bilibili_url',avatarPath:'avatar_path',backgroundPath:'background_path'};
         export const settingsAssetBucket = 'site-assets';
-        export async function listSettings() { return {appearance: state.value}; }
+        export function resolveImageExtension(file) { if(file.type !== 'image/png') throw new Error('invalid profile image'); return 'png'; }
+        export async function listSettings() { return {...state.entries,appearance: state.value}; }
         export async function saveSettings(entries) {
           if (state.failSave) throw new Error('save failed');
           state.value = entries.appearance;
+          Object.assign(state.entries, entries);
         }
       `;
         if (id === '\0mock:$lib/server/supabase')
@@ -74,7 +76,8 @@ const form = (mode = 'system') => {
   value.set('cursorMode', mode);
   return value;
 };
-const reset = () => Object.assign(state, { value: '', uploaded: [], removed: [], failUpload: 0, failSave: false });
+const reset = () =>
+  Object.assign(state, { value: '', uploaded: [], removed: [], failUpload: 0, failSave: false, entries: {} });
 let passed = 0;
 async function test(name, run) {
   reset();
@@ -183,6 +186,13 @@ try {
   });
   await test('header defaults, independent text saves and blur preserve cursor and asset settings', async () => {
     assert.equal(parseAppearance().headerTitle, '');
+    const { resolveHeaderText } = await server.ssrLoadModule('/src/lib/appearance.ts');
+    const branding = { title: 'Siro的歌单', subtitle: 'Siro的歌单与愿望单管理' };
+    assert.deepEqual(resolveHeaderText(parseAppearance(), branding), branding);
+    assert.deepEqual(resolveHeaderText(parseAppearance('{"headerTitle":"新标题"}'), branding), {
+      title: '新标题',
+      subtitle: branding.subtitle
+    });
     assert.equal(parseAppearance().backgroundBlur, 16);
     state.value = JSON.stringify({ ...parseAppearance(), logo: 'appearance/keep.png', mode: 'system' });
     const input = new FormData();
@@ -209,30 +219,50 @@ try {
     assert.equal(readBackgroundBlur(input), 40);
     assert.equal(parseAppearance('{"backgroundBlur":999}').backgroundBlur, 16);
   });
-  await test('site text saves preserve existing branding assets and accept empty overrides', async () => {
-    state.value = JSON.stringify({
-      ...parseAppearance(),
-      logo: 'appearance/keep.png',
-      headerTitle: '主播の歌单',
-      backgroundBlur: 20
-    });
-    const input = form('system');
-    input.set('siteTitle', '新网页标题');
-    input.set('siteDescription', '新的描述');
-    input.set('tagline', '首页说明');
-    await saveAppearance(input);
+  await test('request prefix defaults, trimming and unified save preserve old assets and update all text', async () => {
+    const { formatSongRequest } = await server.ssrLoadModule('/src/lib/appearance.ts');
+    assert.equal(parseAppearance('{}').requestPrefix, '点歌');
+    assert.equal(formatSongRequest('Butter-Fly', ' 我要听  '), '我要听 Butter-Fly');
+    assert.equal(formatSongRequest('歌名', ''), '点歌 歌名');
+    state.value = JSON.stringify({ ...parseAppearance(), logo: 'appearance/keep.png' });
+    const input = form();
+    input.set('requestPrefix', ' 我要听 ');
+    input.set('headerTitle', '新标题');
+    input.set('headerSubtitle', '新副标题');
+    input.set('backgroundBlur', '0');
+    await saveAppearance(input, { heroTitle: '主播', bilibiliUrl: 'https://space.bilibili.com/1' });
     const saved = parseAppearance(state.value);
-    assert.equal(saved.siteTitle, '新网页标题');
-    assert.equal(saved.siteDescription, '新的描述');
-    assert.equal(saved.tagline, '首页说明');
+    assert.equal(saved.requestPrefix, '我要听');
+    assert.equal(saved.headerTitle, '新标题');
+    assert.equal(saved.headerSubtitle, '新副标题');
+    assert.equal(saved.backgroundBlur, 0);
     assert.equal(saved.logo, 'appearance/keep.png');
-    assert.equal(saved.headerTitle, '主播の歌单');
-    assert.equal(saved.backgroundBlur, 20);
-    input.set('siteTitle', '');
+    assert.equal(state.entries.hero_title, '主播');
+    input.set('requestPrefix', '');
     await saveAppearance(input);
-    assert.equal(parseAppearance(state.value).siteTitle, '');
-    input.set('siteDescription', 'x'.repeat(301));
-    await assert.rejects(() => saveAppearance(input));
+    assert.equal(parseAppearance(state.value).requestPrefix, '点歌');
+    for (const value of ['a'.repeat(21), '点歌\n']) {
+      input.set('requestPrefix', value);
+      await assert.rejects(() => saveAppearance(input));
+    }
+    assert.equal(state.uploaded.length, 0);
+  });
+  await test('unified profile and appearance uploads roll back together on failed settings write', async () => {
+    const before = JSON.stringify({ ...parseAppearance(), requestPrefix: '原前缀' });
+    state.value = before;
+    state.entries.hero_title = '原主播';
+    const input = form();
+    input.set('avatar', png());
+    input.set('logo', png());
+    input.set('requestPrefix', '新前缀');
+    state.failSave = true;
+    await assert.rejects(() =>
+      saveAppearance(input, { heroTitle: '新主播', bilibiliUrl: 'https://space.bilibili.com/1' })
+    );
+    assert.equal(state.value, before);
+    assert.equal(state.entries.hero_title, '原主播');
+    assert.equal(state.uploaded.length, 2);
+    assert.deepEqual(state.removed, state.uploaded);
   });
   console.log(`${passed} appearance tests passed.`);
 } finally {

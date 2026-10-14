@@ -19,6 +19,8 @@
 
 音乐导入仅获取歌曲信息，不下载音频；私密歌单或平台限制可能导致解析失败。
 
+页面设置直接展示常用资料，文字与图标、鼠标指针和点歌复制格式默认折叠，统一通过底部固定按钮保存。点歌前缀默认“点歌”，支持自定义和恢复默认；复制内容为“前缀 + 一个空格 + 完整歌名”。
+
 ## 快速测试
 
 需要 Node.js 20.19+ 或 22.12+。在项目目录执行：
@@ -58,6 +60,8 @@ npm run dev:local
 | `npm run test:security` / `test:analytics`                                    | 安全与访问统计测试。                                       |
 
 ## 技术栈
+
+页面设置浏览器回归可执行 `npm run test:page-settings`，使用独立的本地测试数据库，需要 Playwright 和 Edge；也可通过 `npm run test:page-settings -- <Playwright 的 index.mjs 路径>` 使用已有安装。
 
 SvelteKit 2 · Svelte 5 · Vite 8 · Tailwind CSS 4 · Supabase · Zod 4 · `@neteasecloudmusicapienhanced/api`
 

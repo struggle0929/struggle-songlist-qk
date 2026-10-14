@@ -388,6 +388,19 @@ export const actions: Actions = {
     }
   },
 
+  savePageSettings: async ({ request }) => {
+    const form = await request.formData();
+    const parsed = profileFormSchema.safeParse(form);
+    if (!parsed.success)
+      return fail(400, { kind: 'profile-error' as const, adminError: getValidationMessage(parsed.error) });
+    try {
+      await saveAppearance(form, { heroTitle: parsed.data.heroTitle, bilibiliUrl: parsed.data.bilibiliUrl });
+      return { kind: 'success' as const, adminMessage: '页面设置已保存。' };
+    } catch (error) {
+      return fail(400, { kind: 'profile-error' as const, adminError: getErrorMessage(error) });
+    }
+  },
+
   saveProfile: async ({ request }) => {
     const formData = await request.formData();
     let backgroundBlur: number | undefined;

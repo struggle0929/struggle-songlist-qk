@@ -20,12 +20,14 @@ export type Appearance = {
   headerTitle: string;
   headerSubtitle: string;
   backgroundBlur: number;
+  requestPrefix: string;
   logo: string;
   favicon: string;
   mode: CursorMode | 'inherit';
   static: Partial<Record<CursorState, CursorAsset>>;
   animated: Partial<Record<CursorState, CursorAsset>>;
 };
+// Empty overrides retain each deployment's configured branding.
 export const defaultHeaderTitle = '';
 export const defaultHeaderSubtitle = '';
 export const defaultBackgroundBlur = 16;
@@ -36,6 +38,7 @@ export const emptyAppearance = (): Appearance => ({
   headerTitle: defaultHeaderTitle,
   headerSubtitle: defaultHeaderSubtitle,
   backgroundBlur: defaultBackgroundBlur,
+  requestPrefix: '点歌',
   logo: '',
   favicon: '',
   mode: 'inherit',
@@ -44,7 +47,10 @@ export const emptyAppearance = (): Appearance => ({
 });
 
 export function resolveHeaderText(appearance: Appearance, defaults: { title: string; subtitle: string }) {
-  return { title: appearance.headerTitle || defaults.title, subtitle: appearance.headerSubtitle || defaults.subtitle };
+  return {
+    title: appearance.headerTitle || defaults.title,
+    subtitle: appearance.headerSubtitle || defaults.subtitle
+  };
 }
 
 export function hasCompleteCursorSet(appearance: Appearance, mode: UploadedCursorMode): boolean {
@@ -78,6 +84,12 @@ export function parseAppearance(value: string | undefined): Appearance {
       if (typeof raw[key] === 'string' && raw[key].trim() && raw[key].trim().length <= limit)
         result[key] = raw[key].trim();
     }
+    if (
+      typeof raw.requestPrefix === 'string' &&
+      raw.requestPrefix.trim().length <= 20 &&
+      !/[\r\n\x00-\x1f\x7f]/.test(raw.requestPrefix)
+    )
+      result.requestPrefix = raw.requestPrefix.trim() || '点歌';
     if (Number.isInteger(raw.backgroundBlur) && raw.backgroundBlur >= 0 && raw.backgroundBlur <= 40)
       result.backgroundBlur = raw.backgroundBlur;
     for (const key of ['logo', 'favicon'] as const) {
@@ -102,6 +114,8 @@ export function parseAppearance(value: string | undefined): Appearance {
   }
   return result;
 }
+
+export const formatSongRequest = (title: string, prefix = '点歌') => `${prefix.trim() || '点歌'} ${title}`;
 
 export function appearancePaths(value: Appearance): string[] {
   return [

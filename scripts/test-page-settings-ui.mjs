@@ -1,42 +1,41 @@
-import { startUiFixture } from './lib/ui-fixture.mjs';
-// All writes are intercepted; never modifies real settings.
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { stringify } from 'devalue';
-const { chromium } = await import(pathToFileURL(process.argv[2]).href);
-const fixture = await startUiFixture();
-const browser = await chromium.launch({ headless: true, channel: 'msedge' });
+const { chromium } = await import(process.argv[2] ? pathToFileURL(process.argv[2]).href : 'playwright');
+import { startUiFixture } from './lib/ui-fixture.mjs';
+const backend = await startUiFixture(5197);
+const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const errors = [];
+const dir = `${process.env.TEMP}/songlist-qk-settings-qa`;
+await mkdir(dir, { recursive: true });
 try {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-  await fixture.login(context);
-  const page = await context.newPage();
-  const errors = [];
-  const posts = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  await page.route('**/*', async (route) => {
-    if (route.request().method() !== 'POST') return route.continue();
-    const form = await new Response(route.request().postDataBuffer(), {
-      headers: { 'content-type': route.request().headers()['content-type'] }
-    }).formData();
-    posts.push({ url: route.request().url(), form });
-    await route.fulfill({
-      json: { type: 'success', status: 200, data: stringify({ kind: 'success', adminMessage: 'mock saved' }) }
-    });
-  });
-  await page.goto('http://127.0.0.1:5198/admin', { waitUntil: 'networkidle' });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('http://127.0.0.1:5197/admin/login');
+  await page.locator('[name=email]').fill('admin@local.test');
+  await page.locator('[name=password]').fill(backend.password);
+  await page.getByRole('button', { name: '登录后台' }).click();
+  await page.waitForURL('**/admin');
+  await page.waitForLoadState('networkidle');
   await page.getByRole('button', { name: '页面配置', exact: true }).click();
-  const dialog = page.getByRole('dialog');
-  await dialog.waitFor();
-  const slider = dialog.locator('[name="backgroundBlur"]');
-  assert.equal(await slider.inputValue(), '16');
-  await slider.fill('30');
-  assert.equal(
-    await dialog.locator('img[alt="背景预览"]').evaluate((el) => getComputedStyle(el).filter),
-    'blur(30px) saturate(1.1)'
-  );
-  await dialog.locator('[name="background"]').setInputFiles({
+  const modal = page.getByRole('dialog');
+  await modal.waitFor();
+  assert.equal(await modal.locator('form').count(), 1);
+  assert.equal(await modal.getByRole('button', { name: '保存设置', exact: true }).count(), 1);
+  assert.equal(await modal.locator('details.settings-section[open]').count(), 0);
+  assert.equal(await modal.getByText('确认小标题', { exact: true }).count(), 0);
+  await page.waitForTimeout(250); // Let the dialog's entrance animation finish before visual inspection.
+  await page.screenshot({ path: `${dir}/compact-desktop.png` });
+  console.log('PASS compact settings contain one form and three default-collapsed sections');
+
+  await modal.getByText('页面文字与图标', { exact: true }).click();
+  await modal.locator('[name=headerTitle]').fill('测试标题');
+  await modal.locator('[name=headerSubtitle]').fill('测试副标题');
+  await modal.getByText('点歌复制格式', { exact: true }).click();
+  await modal.locator('[name=requestPrefix]').fill(' 我要听  ');
+  await modal.getByText('复制示例：我要听 Butter-Fly', { exact: true }).waitFor();
+  await modal.locator('[name=heroTitle]').fill('新的主播名');
+  await modal.locator('[name=avatar]').setInputFiles({
     name: 'preview.png',
     mimeType: 'image/png',
     buffer: Buffer.from(
@@ -44,35 +43,92 @@ try {
       'base64'
     )
   });
-  assert.ok((await dialog.locator('img[alt="背景预览"]').getAttribute('src')).startsWith('blob:'));
-  await dialog.locator('[name="headerTitle"]').fill('标题测试');
-  const saved = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('saveHeader'));
-  await dialog.getByRole('button', { name: '确认小标题', exact: true }).click();
-  await saved;
-  assert.equal(posts[0].form.get('headerField'), 'headerTitle');
-  assert.equal(posts[0].form.get('headerTitle'), '标题测试');
-  await dialog.getByRole('button', { name: '确认小标题', exact: true }).waitFor({ state: 'visible' });
-  await dialog.locator('[name="headerSubtitle"]').fill('副标题测试');
-  const saved2 = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('saveHeader'));
-  await dialog.getByRole('button', { name: '确认副标题', exact: true }).click();
-  await saved2;
-  assert.equal(posts[1].form.get('headerField'), 'headerSubtitle');
+  assert.ok((await modal.locator('img[alt="头像预览"]').getAttribute('src')).startsWith('blob:'));
+  await modal.locator('[name=backgroundBlur]').fill('0');
+  assert.ok((await modal.locator('img[alt="头像预览"]').getAttribute('src')).startsWith('blob:'));
+  const saved = page.waitForResponse((r) => r.url().includes('?/savePageSettings'));
+  await modal.getByRole('button', { name: '保存设置', exact: true }).click();
+  assert.equal((await saved).status(), 200);
   await page.waitForLoadState('networkidle');
-  await slider.fill('0');
-  await page.screenshot({ path: join(tmpdir(), 'songlist-page-settings-desktop.png') });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await slider.scrollIntoViewIfNeeded();
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await page.screenshot({ path: join(tmpdir(), 'songlist-page-settings-mobile.png') });
-  const profile = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('saveProfile'));
-  await dialog.getByRole('button', { name: '保存配置', exact: true }).click();
-  await profile;
-  assert.equal(posts[2].form.get('backgroundBlur'), '0');
-  assert.equal(errors.length, 0, errors.join('\n'));
-  console.log(
-    'PASS header confirmations, blur slider, selected-image preview and responsive layout; all writes mocked.'
-  );
+  const rows = await backend.db.query('select key,value from settings');
+  const settings = Object.fromEntries(rows.rows.map((r) => [r.key, r.value]));
+  assert.equal(settings.hero_title, '新的主播名');
+  const appearance = JSON.parse(settings.appearance);
+  assert.equal(appearance.requestPrefix, '我要听');
+  assert.equal(appearance.headerTitle, '测试标题');
+  assert.equal(appearance.headerSubtitle, '测试副标题');
+  assert.equal(appearance.backgroundBlur, 0);
+  console.log('PASS unified settings persist in PostgreSQL');
+
+  const publicPage = await browser.newPage();
+  await publicPage.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: async (text) => {
+          window.__copied = text;
+        }
+      },
+      configurable: true
+    });
+  });
+  await publicPage.goto('http://127.0.0.1:5197/');
+  await publicPage.waitForLoadState('networkidle');
+  const firstRow = publicPage.locator('.song-row').first();
+  const title = await firstRow.locator('h3').first().innerText();
+  await firstRow.click();
+  await publicPage.waitForFunction(() => window.__copied);
+  assert.equal(await publicPage.evaluate(() => window.__copied), `我要听 ${title}`);
+  await publicPage.getByRole('button', { name: '随机歌曲', exact: true }).click();
+  await publicPage.waitForTimeout(100);
+  assert.ok((await publicPage.evaluate(() => window.__copied)).startsWith('我要听 '));
+  console.log('PASS public song clicks and random selections copy the custom prefix');
+
+  await modal.getByText('鼠标指针', { exact: true }).click();
+  await modal.locator('[name=cursorMode]').selectOption('animated');
+  await modal.getByText('点歌复制格式', { exact: true }).click();
+  await modal.locator('[name=requestPrefix]').fill('待保存前缀');
+  const rejected = page.waitForResponse((r) => r.url().includes('?/savePageSettings'));
+  await modal.getByRole('button', { name: '保存设置', exact: true }).click();
+  const rejection = await (await rejected).json();
+  assert.equal(rejection.type, 'failure');
+  assert.equal(rejection.status, 400);
+  await modal.getByRole('alert').waitFor();
+  assert.equal(await modal.locator('[name=requestPrefix]').inputValue(), '待保存前缀');
+  const unchanged = await backend.db.query("select value from settings where key='appearance'");
+  assert.equal(JSON.parse(unchanged.rows[0].value).requestPrefix, '我要听');
+  console.log('PASS failed validation preserves unsaved input and does not change the saved settings');
+
+  await modal.locator('[name=cursorMode]').selectOption('inherit');
+  await modal.getByRole('button', { name: '恢复默认', exact: true }).click();
+  assert.equal(await modal.locator('[name=requestPrefix]').inputValue(), '点歌');
+  const reset = page.waitForResponse((r) => r.url().includes('?/savePageSettings'));
+  await modal.getByRole('button', { name: '保存设置', exact: true }).click();
+  assert.equal((await reset).status(), 200);
+  await page.waitForLoadState('networkidle');
+  const defaults = await backend.db.query("select value from settings where key='appearance'");
+  assert.equal(JSON.parse(defaults.rows[0].value).requestPrefix, '点歌');
+  assert.equal(JSON.parse(defaults.rows[0].value).headerTitle, '测试标题');
+  console.log('PASS restore-default resets only the copy prefix and retains other saved settings');
+
+  for (const [name, width, height] of [
+    ['mobile', 390, 844],
+    ['short-desktop', 1280, 600]
+  ]) {
+    await page.setViewportSize({ width, height });
+    await modal.locator('details.settings-section').evaluateAll((elements) => elements.forEach((e) => (e.open = true)));
+    const button = modal.getByRole('button', { name: '保存设置', exact: true });
+    const rect = await button.boundingBox();
+    assert.ok(rect.y >= 0 && rect.y + rect.height <= height, name);
+    const before = await button.boundingBox();
+    await modal.locator('.page-settings-body').evaluate((e) => (e.scrollTop = e.scrollHeight));
+    const after = await button.boundingBox();
+    assert.equal(Math.round(before.y), Math.round(after.y));
+    await page.screenshot({ path: `${dir}/${name}.png` });
+  }
+  assert.deepEqual(errors, []);
+  console.log('PASS save footer stays visible on mobile and short desktop while only the settings body scrolls');
+  console.log('6 settings UI tests passed. No production data used.');
 } finally {
   await browser.close();
-  await fixture.close();
+  await backend.close();
 }

@@ -89,11 +89,12 @@ try {
   console.log('PASS expired access token refreshes with verified account identity');
   await page.getByRole('button', { name: '页面配置', exact: true }).click();
   const dialog = page.getByRole('dialog');
+  await dialog.getByText('页面文字与图标', { exact: true }).click();
   await dialog.locator('[name=siteTitle]').fill('主播测试标题');
   await dialog.locator('[name=siteDescription]').fill('测试网页描述');
   await dialog.locator('[name=tagline]').fill('测试首页说明');
-  const saved = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('saveAppearance'));
-  await dialog.getByRole('button', { name: '保存页面文字、图标与鼠标指针', exact: true }).click();
+  const saved = page.waitForResponse((r) => r.request().method() === 'POST' && r.url().includes('savePageSettings'));
+  await dialog.getByRole('button', { name: '保存设置', exact: true }).click();
   assert.equal((await saved).status(), 200);
   await page.waitForFunction(() => document.title.includes('主播测试标题'));
   await dialog.getByRole('button', { name: '关闭', exact: true }).click();

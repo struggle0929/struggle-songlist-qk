@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test:appearance": "node scripts/test-appearance.mjs",
+    "test:page-settings": "node scripts/test-page-settings-ui.mjs",
     "test:backup": "node scripts/test-database-backup.mjs",
     "test:tags": "node scripts/test-tags.mjs",
     "test:music-import": "node scripts/test-music-import.mjs",

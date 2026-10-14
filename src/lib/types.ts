@@ -66,6 +66,9 @@ export interface ImportPreview {
   sourceInput: string;
   status: string;
   songs: Array<{
+    neteaseId?: string;
+    lyricId?: string;
+    languageSource?: 'metadata' | 'lyrics' | 'title' | 'unknown';
     title: string;
     artist: string;
     language: string;

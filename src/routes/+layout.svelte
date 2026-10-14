@@ -1,5 +1,8 @@
 <script lang="ts">
   import '../app.css';
+  import { dev } from '$app/environment';
+  import { injectAnalytics } from '@vercel/analytics/sveltekit';
+  import { publicPageView } from '$lib/analytics';
   import { getAutomaticCursorMode, hasCompleteCursorSet, resolveFavicon, resolveHeaderText } from '$lib/appearance';
   import { branding, customCursorsEnabled, customCursors } from '$lib/branding';
 
@@ -12,6 +15,7 @@
   import type { LayoutData } from './$types';
 
   let { data, children }: { data: LayoutData; children: Snippet } = $props();
+  if (!dev) injectAnalytics({ mode: 'production', beforeSend: publicPageView });
   const headerText = $derived(resolveHeaderText(data.appearance, branding));
   const cursorConfig = $derived.by(() => {
     const appearance = data.appearance;
@@ -28,8 +32,8 @@
 </script>
 
 <svelte:head>
-  <title>{branding.title}</title>
-  <meta name="description" content={branding.description} />
+  <title>{data.appearance.siteTitle || branding.title}</title>
+  <meta name="description" content={data.appearance.siteDescription || branding.description} />
   <link rel="icon" href={resolveFavicon(data.appearance, branding.icon)} />
 </svelte:head>
 
@@ -56,7 +60,7 @@
     <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-6 lg:px-6">
       <p class="text-xs text-[var(--color-text-muted)]">
         © {currentYear}
-        {branding.title}
+        {data.appearance.siteTitle || branding.title}
       </p>
       <p class="text-xs text-[var(--color-text-muted)]">由 SvelteKit 驱动</p>
     </div>

@@ -1,17 +1,17 @@
 <script lang="ts">
-  import { branding } from '$lib/branding';
   import { enhance } from '$app/forms';
   import { createLocalPending } from '$lib/pending.svelte';
 
-  import type { ActionData } from './$types';
+  import { branding } from '$lib/branding';
+  import type { ActionData, PageData } from './$types';
 
-  let { form }: { form?: ActionData } = $props();
+  let { form, data }: { form?: ActionData; data: PageData } = $props();
 
   const submit = createLocalPending();
 </script>
 
 <svelte:head>
-  <title>管理员登录 | {branding.title}</title>
+  <title>管理员登录 | {data.appearance.siteTitle || branding.title}</title>
 </svelte:head>
 
 <div class="flex min-h-[70vh] items-center justify-center">

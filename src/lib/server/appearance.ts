@@ -44,6 +44,16 @@ export async function saveAppearance(form: FormData) {
   const existing = parseAppearance((await listSettings([pageSettingsKeys.appearance]))[pageSettingsKeys.appearance]);
   const next = structuredClone(existing);
   next.mode = mode as CursorMode | 'inherit';
+  for (const [key, limit] of [
+    ['siteTitle', 80],
+    ['siteDescription', 300],
+    ['tagline', 200]
+  ] as const) {
+    const raw = form.get(key);
+    if (raw === null) continue;
+    if (typeof raw !== 'string' || raw.trim().length > limit) throw new UserFacingError('页面文字超出允许长度。');
+    next[key] = raw.trim();
+  }
   const uploads: { path: string; file: File }[] = [];
 
   const prepareImage = async (name: string, label: string, gif: boolean, cursor: boolean) => {

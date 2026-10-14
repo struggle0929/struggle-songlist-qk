@@ -43,7 +43,7 @@
     </h1>
 
     <p class="mt-3 max-w-xl text-sm text-[var(--color-text-secondary)] lg:text-base">
-      {branding.tagline}
+      {catalog.settings.appearance.tagline || branding.tagline}
     </p>
 
     <dl class="hero-stats mt-10">

@@ -1,10 +1,11 @@
 <script lang="ts">
   import AppearanceSettings from './AppearanceSettings.svelte';
   import { enhance } from '$app/forms';
+  import type { SubmitFunction } from '@sveltejs/kit';
   import { createLocalPending } from '$lib/pending.svelte';
   import Icon from '$lib/components/ui/Icon.svelte';
   import { Dialog } from 'bits-ui';
-  import { onDestroy } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
 
   import type { PageSettings } from '$lib/types';
 
@@ -48,8 +49,14 @@
   const avatarPreview = createImagePreview(() => settings.avatar);
   const backgroundPreview = createImagePreview(() => settings.background);
   let backgroundBlur = $state(16);
+  let wasOpen = false;
   $effect(() => {
-    if (open) backgroundBlur = settings.appearance.backgroundBlur;
+    if (open && !wasOpen) {
+      backgroundBlur = untrack(() => settings.appearance.backgroundBlur);
+      avatarPreview.clear();
+      backgroundPreview.clear();
+    }
+    wasOpen = open;
   });
 
   onDestroy(() => {
@@ -57,7 +64,19 @@
     backgroundPreview.clear();
   });
 
-  const submit = createLocalPending();
+  const submit = createLocalPending({ reset: false });
+  const profileEnhance: SubmitFunction = (input) => {
+    const handler = submit.enhance(input);
+    return async (output) => {
+      if (typeof handler === 'function') await handler(output);
+      if (output.result.type === 'success') {
+        for (const field of input.formElement.querySelectorAll<HTMLInputElement>('input[type="file"]'))
+          field.value = '';
+        avatarPreview.clear();
+        backgroundPreview.clear();
+      }
+    };
+  };
 </script>
 
 <Dialog.Root bind:open>
@@ -83,7 +102,7 @@
         action="?/saveProfile"
         enctype="multipart/form-data"
         class="space-y-5"
-        use:enhance={submit.enhance}
+        use:enhance={profileEnhance}
       >
         <div class="rounded-[20px] border border-[var(--color-border-soft)] bg-[var(--color-surface-muted)] p-4">
           <label class="field-label">

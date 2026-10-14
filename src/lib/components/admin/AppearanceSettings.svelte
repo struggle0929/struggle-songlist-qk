@@ -2,9 +2,9 @@
   import { enhance } from '$app/forms';
   import type { SubmitFunction } from '@sveltejs/kit';
   import { cursorLabels, cursorStates, staticStates, resolveHeaderText, type Appearance } from '$lib/appearance';
-  import { branding } from '$lib/branding';
   import AppearanceUpload from './AppearanceUpload.svelte';
   import { pendingActions } from '$lib/pending.svelte';
+  import { branding } from '$lib/branding';
   let { appearance }: { appearance: Appearance } = $props();
   const headerText = $derived(resolveHeaderText(appearance, branding));
   let mode = $state<Appearance['mode']>('inherit');
@@ -36,6 +36,35 @@
   <form method="POST" action="?/saveAppearance" enctype="multipart/form-data" class="space-y-4" use:enhance={submit}>
     <fieldset disabled={pending} class="space-y-4">
       {#key revision}
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="field-label"
+            ><span>浏览器标题</span><input
+              name="siteTitle"
+              class="form-field"
+              maxlength="80"
+              value={appearance.siteTitle}
+              placeholder={branding.title}
+            /></label
+          >
+          <label class="field-label"
+            ><span>首页说明</span><input
+              name="tagline"
+              class="form-field"
+              maxlength="200"
+              value={appearance.tagline}
+              placeholder={branding.tagline}
+            /></label
+          >
+          <label class="field-label sm:col-span-2"
+            ><span>网页描述</span><input
+              name="siteDescription"
+              class="form-field"
+              maxlength="300"
+              value={appearance.siteDescription}
+              placeholder={branding.description}
+            /></label
+          >
+        </div>
         <div class="grid gap-3 sm:grid-cols-2">
           <AppearanceUpload name="logo" label="页面左上角图片替换" current={appearance.logo} />
           <AppearanceUpload name="favicon" label="网址图标（favicon）" current={appearance.favicon} />
@@ -116,7 +145,7 @@
         动态“处理中”用于提交操作，“等待”用于页面跳转。图片载入失败时会保留系统指针。
       </p>
       <button type="submit" class="button button-primary button-full" disabled={pending}
-        >{pending ? '正在保存…' : '保存图标与鼠标指针'}</button
+        >{pending ? '正在保存…' : '保存页面文字、图标与鼠标指针'}</button
       >
     </fieldset>
   </form>

@@ -94,20 +94,22 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 在项目目录配置好 `.env` 后执行 `npm run dev -- --host 127.0.0.1 --port 5173`，打开终端显示的本地地址（通常为 `http://127.0.0.1:5173`）。终端必须保持运行；退出终端或重启电脑后，重新执行命令即可恢复测试地址。
 
-仅预览前台时可按部署指南启用 `LOCAL_DEMO=true`。需要测试后台添加、编辑、导入及恢复时，使用独立测试数据库并设置 `LOCAL_DEMO=false`；本地连接正式数据库时，后台操作也会修改正式数据。
+推荐执行 `npm run dev:local`，打开 `http://127.0.0.1:5183`。后台测试账号为 `admin@local.test`，密码为 `Local-only-0929!`。数据库、账号和图片存储均为本地内存模拟，退出后清空，不连接正式 Supabase；音乐解析仍会请求对应平台官方接口。端口被占用时先停止旧测试服务。终端关闭后，下次重新执行命令即可。
 
-开发缓存和自动测试缓存已分开，避免测试运行影响本地页面交互。浏览器回归脚本 `scripts/test-tags-ui.mjs` 需要另行安装 Playwright、启动本地服务，并准备含歌曲及已有标签的测试数据库；脚本会拦截并模拟所有 POST 请求。运行方式为 `node --env-file=.env scripts/test-tags-ui.mjs`。
+仅预览前台时也可启用 `LOCAL_DEMO=true`。普通 `npm run dev` 使用 `.env` 对应数据库，连接正式库时后台操作会修改正式数据。
 
-统一音乐导入的浏览器回归脚本运行方式为 `node --env-file=.env scripts/test-music-import-ui.mjs`，同样需要 Playwright 和本地服务，使用模拟 POST 响应检查平台入口、预览、链接保留与手机布局。
+开发缓存和自动测试缓存已分开。浏览器回归脚本需要 Playwright 与 Microsoft Edge，会自行启动隔离测试数据库和服务，不需要真实账号或数据库。运行方式为 `node scripts/test-tags-ui.mjs`，也可在命令末尾指定 Playwright 的 `index.mjs` 绝对路径。
 
-页面配置浏览器回归脚本为 `node --env-file=.env scripts/test-page-settings-ui.mjs`，检查导航文字独立提交、背景模糊实时预览及手机布局，同样使用模拟 POST 响应。
+统一音乐导入的浏览器回归脚本为 `node scripts/test-music-import-ui.mjs`；歌词识别为 `npm run test:language-ui`。使用模拟响应检查入口、预览、手动校对、停止识别、链接保留与手机布局。
+
+页面配置浏览器回归脚本为 `node scripts/test-page-settings-ui.mjs`。`npm run test:single-ui` 校验登录、会话刷新、页面文字与安全响应；设置 `SECURITY_PRODUCTION_TEST=true` 后还会构建并校验生产 CSP 和访问统计。浏览器测试不要同时运行，以免共享构建目录相互影响。
 
 ## 部署
 
 使用 `@sveltejs/adapter-auto`，Vercel / Netlify / Cloudflare Pages 等均可。部署前：
 
 - 托管平台配置全部环境变量
-- 在生产 Supabase 执行 `supabase/schema.sql`
+- 仅在首次创建的空数据库执行 `supabase/schema.sql`；已有站点按需执行 `supabase/migrations` 中的升级文件，不要重新初始化数据库
 - 在 Supabase Auth 中至少创建一个管理员账号
 
 ## 技术栈

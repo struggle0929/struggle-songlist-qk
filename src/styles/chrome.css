@@ -140,3 +140,13 @@
     transform: scaleX(0);
   }
 }
+.import-preview-dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(900px, calc(100dvh - 4rem));
+  max-height: calc(100dvh - 4rem);
+  overflow: hidden;
+}
+.import-preview-dialog .dialog-header {
+  flex-shrink: 0;
+}

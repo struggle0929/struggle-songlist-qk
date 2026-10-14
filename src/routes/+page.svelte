@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-  <title>{branding.title}</title>
+  <title>{data.catalog.settings.appearance.siteTitle || branding.title}</title>
 </svelte:head>
 
 <div class="space-y-8 lg:space-y-10">

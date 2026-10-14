@@ -60,7 +60,7 @@
 </script>
 
 <svelte:head>
-  <title>后台管理 | {branding.title}</title>
+  <title>后台管理 | {data.appearance.siteTitle || branding.title}</title>
 </svelte:head>
 
 <div class="space-y-6">
@@ -97,6 +97,7 @@
 {#if hasImportPreview(form) && !importModalDismissed}
   <NeteaseImportModal
     preview={form.importPreview}
+    existingSongs={data.dashboard.songs}
     {tags}
     adminError={importError}
     onClose={() => (importModalDismissed = true)}

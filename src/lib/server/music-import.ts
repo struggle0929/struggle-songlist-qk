@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import { musicProviderLabel, type MusicProvider } from '$lib/music-import';
 import { UserFacingError } from '$lib/server/errors';
-import { musicUrl, readMusicUrl } from '$lib/server/music-http';
+import { musicUrl, readMusicUrl, resolveMusicShare } from '$lib/server/music-http';
 import { fetchNeteasePlaylistSongs, fetchNeteaseSong } from '$lib/server/netease';
+import { explicitSongLanguage } from '$lib/language';
+import type { SongLanguage } from '$lib/types';
+import { fetchKugouPlaylist, kugouCollectionId } from './kugou-playlist';
 
-type Track = { title: string; artist: string };
+type Track = { title: string; artist: string; language?: SongLanguage; lyricId?: string; languageSource?: 'metadata' };
 
 export function extractMusicLink(input: string) {
   const link = input.match(/https?:\/\/[^\s<>"'，。；）】]+/i)?.[0];
@@ -37,7 +40,9 @@ export function detectMusicLink(value: string): { provider: MusicProvider; kind?
           : /\/song\.html|\/share\/[^/]+\.html/i.test(path)
             ? 'song'
             : undefined
-        : /\/playlist\/|[?&]disstid=/i.test(url.href)
+        : /\/playlist\/|[?&]disstid=/i.test(url.href) ||
+            (/\/n2\/m\/share\/details\/taoge\.html$/i.test(url.pathname) &&
+              /^\d+$/.test(url.searchParams.get('id') ?? ''))
           ? 'playlist'
           : /\/(?:songDetail|song)\/|[?&]song(?:mid|id)=/i.test(url.href)
             ? 'song'
@@ -50,7 +55,7 @@ export async function fetchSharedMusic(input: string, maxSongs = 5000) {
   let detected = detectMusicLink(link);
   if (!detected.kind) {
     try {
-      link = (await readMusicUrl(link, detected.provider, AbortSignal.timeout(30000))).url.href;
+      link = (await resolveMusicShare(link, detected.provider, (url) => !!detectMusicLink(url.href).kind)).url.href;
       detected = detectMusicLink(link);
     } catch (error) {
       if (error instanceof UserFacingError) throw error;
@@ -62,7 +67,7 @@ export async function fetchSharedMusic(input: string, maxSongs = 5000) {
   return { ...detected, songs };
 }
 const name = z.string().trim().min(1);
-const kugouTrack = z.object({ song_name: name, author_name: name });
+const kugouTrack = z.object({ song_name: name, author_name: name, hash: z.unknown().optional() });
 const qqTrack = z
   .object({ name: name.optional(), songname: name.optional(), singer: z.array(z.object({ name })).min(1) })
   .refine((song) => !!(song.name || song.songname));
@@ -87,6 +92,9 @@ export function parseKugouTracks(html: string): Track[] {
       const rows = z.array(kugouTrack).parse(JSON.parse(html.slice(start, i + 1)));
       return rows.map((row) => ({
         title: row.song_name,
+        ...(typeof row.hash === 'string' && /^[a-f0-9]{32}$/i.test(row.hash)
+          ? { lyricId: row.hash.toUpperCase() }
+          : {}),
         artist: row.author_name
           .split('、')
           .map((part) => part.trim())
@@ -100,7 +108,16 @@ export function parseKugouTracks(html: string): Track[] {
 
 const mapQQ = (input: unknown): Track => {
   const row = qqTrack.parse(input);
-  return { title: row.name ?? row.songname!, artist: row.singer.map((singer) => singer.name).join(' / ') };
+  const language = explicitSongLanguage((input as { language?: unknown }).language);
+  const raw = input as { mid?: unknown; songmid?: unknown; id?: unknown; songid?: unknown };
+  const id = raw.mid ?? raw.songmid ?? raw.id ?? raw.songid;
+  const lyricId = typeof id === 'string' || (typeof id === 'number' && Number.isSafeInteger(id)) ? String(id) : '';
+  return {
+    title: row.name ?? row.songname!,
+    artist: row.singer.map((singer) => singer.name).join(' / '),
+    ...(/^(?:[A-Za-z0-9]{14}|[1-9]\d{0,15})$/.test(lyricId) ? { lyricId } : {}),
+    ...(language ? { language, languageSource: 'metadata' as const } : {})
+  };
 };
 const qqPlaylist = z.object({
   code: z.literal(0),
@@ -117,7 +134,8 @@ const qqPlaylist = z.object({
 async function qqId(input: string, kind: 'song' | 'playlist', signal: AbortSignal) {
   const raw = input.trim();
   if (/^\d+$/.test(raw) || (kind === 'song' && /^[A-Za-z0-9]{14}$/.test(raw))) return raw;
-  const { url } = await readMusicUrl(raw, 'qqmusic', signal);
+  const direct = musicUrl(raw, 'qqmusic');
+  const { url } = await readMusicUrl(direct.href, 'qqmusic', signal, (url) => !!detectMusicLink(url.href).kind);
   const id =
     kind === 'song'
       ? (url.pathname.match(/\/(?:songDetail|song)\/([A-Za-z0-9]+)(?:\.html)?/)?.[1] ??
@@ -192,13 +210,27 @@ export async function fetchMusicTracks(
     let songs: Track[];
     if (provider === 'qqmusic') songs = await qqSongs(input, kind, maxSongs, signal);
     else {
-      const { text, url } = await readMusicUrl(input.trim(), 'kugou', signal);
-      if (kind === 'song' && /zlist|songlist|special/.test(url.pathname))
-        throw new UserFacingError('请在歌单导入栏填写此链接。');
-      if (kind === 'playlist' && !/zlist|songlist|special/.test(url.pathname))
-        throw new UserFacingError('请填写酷狗公开歌单分享链接。');
-      songs = parseKugouTracks(text);
-      if (kind === 'song' && songs.length !== 1) throw new UserFacingError('请填写酷狗单曲分享链接。');
+      const direct = musicUrl(input.trim(), 'kugou');
+      const directCollection = kind === 'playlist' ? kugouCollectionId(direct) : undefined;
+      if (directCollection) {
+        songs = await fetchKugouPlaylist(directCollection, maxSongs, signal);
+      } else {
+        const { text, url } = await readMusicUrl(
+          input.trim(),
+          'kugou',
+          signal,
+          (url) => kind === 'playlist' && !!kugouCollectionId(url)
+        );
+        if (kind === 'song' && /zlist|songlist|special/.test(url.pathname))
+          throw new UserFacingError('请在歌单导入栏填写此链接。');
+        if (kind === 'playlist' && !/zlist|songlist|special/.test(url.pathname))
+          throw new UserFacingError('请填写酷狗公开歌单分享链接。');
+        const collectionId = kind === 'playlist' ? kugouCollectionId(url) : undefined;
+        songs = collectionId ? await fetchKugouPlaylist(collectionId, maxSongs, signal) : parseKugouTracks(text);
+        if (kind === 'playlist' && !collectionId && [10, 100].includes(songs.length))
+          throw new UserFacingError('酷狗分享页可能只返回部分歌曲，请重新复制包含完整歌单编号的分享链接。');
+        if (kind === 'song' && songs.length !== 1) throw new UserFacingError('请填写酷狗单曲分享链接。');
+      }
     }
     if (!songs.length) throw new UserFacingError('这个歌单没有可导入的歌曲。');
     if (songs.length > maxSongs) throw new UserFacingError(`单次最多导入 ${maxSongs} 首歌曲。`);

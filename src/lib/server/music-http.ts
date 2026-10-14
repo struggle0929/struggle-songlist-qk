@@ -1,12 +1,86 @@
 import { UserFacingError } from '$lib/server/errors';
 import type { MusicProvider } from '$lib/music-import';
+import { Agent } from 'undici';
+import { musicProviderLabel } from '$lib/music-import';
+
+// Keep transport settings local to music requests; do not alter Supabase or global fetch.
+const musicAgent = new Agent({ connect: { family: 4, autoSelectFamily: false, timeout: 10000 }, connections: 4 });
+function connectionCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return 'NETWORK_ERROR';
+  const item = error as { code?: unknown; name?: unknown; cause?: unknown; errors?: unknown[] };
+  if (typeof item.code === 'string' && /^[A-Z_0-9]+$/.test(item.code)) return item.code;
+  if (item.cause) return connectionCode(item.cause);
+  if (item.errors?.length) return connectionCode(item.errors[0]);
+  return item.name === 'TimeoutError' || item.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR';
+}
+async function requestMusic(url: URL, provider: MusicProvider, signal: AbortSignal, retry = true) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const options = {
+        redirect: 'manual' as const,
+        signal,
+        dispatcher: musicAgent,
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+          Referer: provider === 'qqmusic' ? 'https://y.qq.com/' : 'https://www.kugou.com/'
+        }
+      };
+      return await fetch(url, options);
+    } catch (error) {
+      const code = connectionCode(error);
+      if (
+        !signal.aborted &&
+        retry &&
+        attempt === 0 &&
+        ['ETIMEDOUT', 'UND_ERR_CONNECT_TIMEOUT', 'ECONNRESET', 'EAI_AGAIN'].includes(code)
+      )
+        continue;
+      // Do not log full URLs, query strings, share tokens or account information.
+      console.warn('music_connection_failed', { provider, host: url.hostname, code });
+      throw new UserFacingError(
+        `${musicProviderLabel(provider)}连接失败（${code}）。请稍后重试；短链接也可改用浏览器打开后的完整歌曲或歌单网址。`
+      );
+    }
+  }
+  throw new UserFacingError('音乐平台连接失败。');
+}
 
 const hosts = {
   netease: new Set(['music.163.com', 'y.music.163.com', '163cn.tv']),
-  kugou: new Set(['m.kugou.com', 'www.kugou.com', 'wwwapi.kugou.com', 't1.kugou.com', 't.kugou.com']),
+  kugou: new Set([
+    'm.kugou.com',
+    'www.kugou.com',
+    'wwwapi.kugou.com',
+    't1.kugou.com',
+    't.kugou.com',
+    'lyrics.kugou.com',
+    'gateway.kugou.com'
+  ]),
   qqmusic: new Set(['c6.y.qq.com', 'c.y.qq.com', 'y.qq.com', 'i.y.qq.com', 'i2.y.qq.com'])
 };
 const maxBytes = 4 * 1024 * 1024;
+// These official aliases accept the same share token as the app's short-link hosts.
+// Give each distinct endpoint a bounded attempt, rather than retrying a blocked host.
+export async function resolveMusicShare(value: string, provider: MusicProvider, stopAt: (url: URL) => boolean) {
+  const original = musicUrl(value, provider);
+  const alternate = new URL(original);
+  if (provider === 'kugou' && original.hostname === 't1.kugou.com') alternate.hostname = 't.kugou.com';
+  else if (provider === 'qqmusic' && original.hostname === 'c6.y.qq.com' && original.pathname === '/base/fcgi-bin/u')
+    alternate.hostname = 'c.y.qq.com';
+  else return readMusicUrl(original.href, provider, AbortSignal.timeout(30000), stopAt);
+
+  let lastError: unknown;
+  for (const candidate of [alternate, original]) {
+    try {
+      const result = await readMusicUrl(candidate.href, provider, AbortSignal.timeout(5000), stopAt, false);
+      if (stopAt(result.url)) return result;
+      lastError = new UserFacingError('无法识别单曲或歌单类型，请使用浏览器打开后的完整链接。');
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
 export function musicUrl(value: string, provider: MusicProvider) {
   let url: URL;
   try {
@@ -28,17 +102,17 @@ export function musicUrl(value: string, provider: MusicProvider) {
   return url;
 }
 
-export async function readMusicUrl(value: string, provider: MusicProvider, signal: AbortSignal) {
+export async function readMusicUrl(
+  value: string,
+  provider: MusicProvider,
+  signal: AbortSignal,
+  stopAt?: (url: URL) => boolean,
+  retry = true
+) {
   let url = musicUrl(value, provider);
   for (let hop = 0; hop < 6; hop++) {
-    const response = await fetch(url, {
-      redirect: 'manual',
-      signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        Referer: provider === 'qqmusic' ? 'https://y.qq.com/' : 'https://www.kugou.com/'
-      }
-    });
+    if (stopAt?.(url)) return { url, text: '' };
+    const response = await requestMusic(url, provider, signal, retry);
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       await response.body?.cancel();
       const location = response.headers.get('location');

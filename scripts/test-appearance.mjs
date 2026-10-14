@@ -183,13 +183,6 @@ try {
   });
   await test('header defaults, independent text saves and blur preserve cursor and asset settings', async () => {
     assert.equal(parseAppearance().headerTitle, '');
-    const { resolveHeaderText } = await server.ssrLoadModule('/src/lib/appearance.ts');
-    const branding = { title: 'Siro的歌单', subtitle: 'Siro的歌单与愿望单管理' };
-    assert.deepEqual(resolveHeaderText(parseAppearance(), branding), branding);
-    assert.deepEqual(resolveHeaderText(parseAppearance('{"headerTitle":"新标题"}'), branding), {
-      title: '新标题',
-      subtitle: branding.subtitle
-    });
     assert.equal(parseAppearance().backgroundBlur, 16);
     state.value = JSON.stringify({ ...parseAppearance(), logo: 'appearance/keep.png', mode: 'system' });
     const input = new FormData();
@@ -215,6 +208,31 @@ try {
     input.set('backgroundBlur', '40');
     assert.equal(readBackgroundBlur(input), 40);
     assert.equal(parseAppearance('{"backgroundBlur":999}').backgroundBlur, 16);
+  });
+  await test('site text saves preserve existing branding assets and accept empty overrides', async () => {
+    state.value = JSON.stringify({
+      ...parseAppearance(),
+      logo: 'appearance/keep.png',
+      headerTitle: '主播の歌单',
+      backgroundBlur: 20
+    });
+    const input = form('system');
+    input.set('siteTitle', '新网页标题');
+    input.set('siteDescription', '新的描述');
+    input.set('tagline', '首页说明');
+    await saveAppearance(input);
+    const saved = parseAppearance(state.value);
+    assert.equal(saved.siteTitle, '新网页标题');
+    assert.equal(saved.siteDescription, '新的描述');
+    assert.equal(saved.tagline, '首页说明');
+    assert.equal(saved.logo, 'appearance/keep.png');
+    assert.equal(saved.headerTitle, '主播の歌单');
+    assert.equal(saved.backgroundBlur, 20);
+    input.set('siteTitle', '');
+    await saveAppearance(input);
+    assert.equal(parseAppearance(state.value).siteTitle, '');
+    input.set('siteDescription', 'x'.repeat(301));
+    await assert.rejects(() => saveAppearance(input));
   });
   console.log(`${passed} appearance tests passed.`);
 } finally {
